@@ -917,6 +917,23 @@ function board_plain_socket()
 
   params = table.concat(params, "/")
 
+  local content_type
+  local content
+  if method == "POST" or method == "PUT" then
+    content_type = luci.http.getenv("CONTENT_TYPE") or ""
+    if content_type == "application/x-www-form-urlencoded"
+      or content_type == "application/form-data" then
+      content_type = "form-data"
+      local params_table = {}
+      for k, v in pairs(luci.http.formvalue()) do
+        table.insert(params_table,k..":"..v)
+      end
+      content = table.concat(params_table, ",")
+    else
+      content = luci.http.content()
+    end
+  end
+
   local uci = luci.model.uci.cursor()
   uci:load("arduino")
   local socket_timeout = uci:get_first("arduino", "arduino", "socket_timeout", 5)
@@ -934,6 +951,13 @@ function board_plain_socket()
   sock:setopt("tcp", "nodelay", 1)
 
   sock:write(params)
+  if method == "POST" or method == "PUT" then
+    sock:write("|")
+    sock:write(content_type)
+    sock:write("|")
+    sock:write(content)
+    sock:write("|")
+  end
   sock:writeall("\r\n")
 
   local response_text = sock:readall()
